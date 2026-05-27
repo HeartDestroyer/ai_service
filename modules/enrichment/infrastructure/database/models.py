@@ -1,0 +1,1 @@
+# ai_service/modules/enrichment/infrastructure/database/models.py - Модели для модуля

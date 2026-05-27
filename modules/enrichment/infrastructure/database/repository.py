@@ -1,0 +1,1 @@
+# ai_service/modules/enrichment/infrastructure/database/repository.py - Репозиторий для модуля

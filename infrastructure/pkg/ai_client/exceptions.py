@@ -1,0 +1,1 @@
+# ai_service/infrastructure/pkg/ai_client/exceptions.py - Исключения для работы с ИИ

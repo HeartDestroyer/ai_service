@@ -1,0 +1,1 @@
+# ai_service/modules/summary/api/routers.py - Роутеры для эндпоинтов

@@ -1,0 +1,1 @@
+# ai_service/cmd/main.py - Точка входа в приложение

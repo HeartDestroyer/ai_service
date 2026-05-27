@@ -1,0 +1,1 @@
+# ai_service/modules/summary/domain/enums.py - Перечисления для модуля

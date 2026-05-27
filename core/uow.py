@@ -1,0 +1,1 @@
+# ai_service/core/uow.py - Unit of Work для работы с репозиториями

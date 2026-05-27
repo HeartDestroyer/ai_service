@@ -1,0 +1,1 @@
+# ai_service/core/headers_middleware.py - Middleware для обработки заголовков запросов

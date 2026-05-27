@@ -1,0 +1,1 @@
+# ai_service/modules/outreach/api/schemas.py - Схемы для эндпоинтов

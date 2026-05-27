@@ -1,0 +1,1 @@
+# ai_service/core/config.py - Конфигурация приложения

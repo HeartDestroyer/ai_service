@@ -1,0 +1,1 @@
+# ai_service/modules/summary/infrastructure/database/models.py - Модели для модуля

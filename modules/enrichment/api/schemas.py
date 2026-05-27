@@ -1,0 +1,1 @@
+# ai_service/modules/enrichment/api/schemas.py - Схемы для эндпоинтов

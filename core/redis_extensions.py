@@ -1,0 +1,1 @@
+# ai_service/core/redis_extensions.py - Расширения для работы с Redis

@@ -1,0 +1,1 @@
+# ai_service/modules/outreach/application/dtos.py - DTO для модуля

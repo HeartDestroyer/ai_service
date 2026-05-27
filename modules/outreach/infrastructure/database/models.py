@@ -1,0 +1,1 @@
+# ai_service/modules/outreach/infrastructure/database/models.py - Модели для модуля

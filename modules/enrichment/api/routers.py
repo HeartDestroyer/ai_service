@@ -1,0 +1,1 @@
+# ai_service/modules/enrichment/api/routers.py - Роутеры для эндпоинтов

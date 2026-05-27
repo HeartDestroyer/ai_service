@@ -1,0 +1,1 @@
+# ai_service/modules/outreach/infrastructure/adapters/adapter.py - Адаптер для модуля

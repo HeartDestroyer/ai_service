@@ -1,0 +1,1 @@
+# ai_service/modules/summary/application/service.py - Сервис для модуля

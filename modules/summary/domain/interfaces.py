@@ -1,0 +1,1 @@
+# ai_service/modules/summary/domain/interfaces.py - Интерфейсы для модуля

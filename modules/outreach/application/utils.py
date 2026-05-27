@@ -1,0 +1,1 @@
+# ai_service/modules/outreach/application/utils.py - Утилиты для модуля

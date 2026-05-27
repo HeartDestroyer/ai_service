@@ -1,0 +1,1 @@
+# ai_service/modules/enrichment/api/dependencies.py - Зависимости для эндпоинтов

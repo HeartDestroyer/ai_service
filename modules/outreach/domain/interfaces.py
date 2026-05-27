@@ -1,0 +1,1 @@
+# ai_service/modules/outreach/domain/interfaces.py - Интерфейсы для модуля

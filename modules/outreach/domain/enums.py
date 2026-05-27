@@ -1,0 +1,1 @@
+# ai_service/modules/outreach/domain/enums.py - Перечисления для модуля

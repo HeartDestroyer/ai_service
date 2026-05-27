@@ -1,0 +1,1 @@
+# ai_service/modules/enrichment/application/utils.py - Утилиты для модуля

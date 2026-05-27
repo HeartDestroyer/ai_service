@@ -1,0 +1,1 @@
+# ai_service/modules/enrichment/application/dtos.py - DTO для модуля

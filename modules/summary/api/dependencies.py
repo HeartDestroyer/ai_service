@@ -1,0 +1,1 @@
+# ai_service/modules/summary/api/dependencies.py - Зависимости для эндпоинтов

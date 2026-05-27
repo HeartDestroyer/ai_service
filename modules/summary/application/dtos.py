@@ -1,0 +1,1 @@
+# ai_service/modules/summary/application/dtos.py - DTO для модуля

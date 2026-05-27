@@ -1,0 +1,1 @@
+# ai_service/modules/summary/application/utils.py - Утилиты для модуля

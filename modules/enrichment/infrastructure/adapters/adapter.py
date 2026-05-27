@@ -1,0 +1,1 @@
+# ai_service/modules/enrichment/infrastructure/adapters/adapter.py - Адаптер для модуля

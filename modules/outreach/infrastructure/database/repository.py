@@ -1,0 +1,1 @@
+# ai_service/modules/outreach/infrastructure/database/repository.py - Репозиторий для модуля

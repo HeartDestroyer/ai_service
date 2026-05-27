@@ -1,0 +1,1 @@
+# ai_service/modules/enrichment/application/service.py - Сервис для модуля

@@ -1,0 +1,1 @@
+# ai_service/modules/outreach/api/dependencies.py - Зависимости для эндпоинтов

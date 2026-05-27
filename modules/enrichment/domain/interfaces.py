@@ -1,0 +1,1 @@
+# ai_service/modules/enrichment/domain/interfaces.py - Интерфейсы для модуля

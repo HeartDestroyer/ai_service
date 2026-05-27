@@ -1,0 +1,1 @@
+# ai_service/modules/outreach/application/service.py - Сервис для модуля
