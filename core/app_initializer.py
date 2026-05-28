@@ -1,1 +1,0 @@
-# ai_service/core/app_initializer.py - Настройка FastAPI приложения

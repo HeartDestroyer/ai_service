@@ -1,0 +1,69 @@
+services:
+  traefik:
+    profiles: []
+    ports:
+      - "80:80"
+    command:
+      - "--api.insecure=false"
+      - "--api.dashboard=true"
+      - "--ping=true"
+      - "--providers.docker=true"
+      - "--providers.docker.exposedbydefault=false"
+      - "--entrypoints.web.address=:80"
+      - "--metrics.prometheus=true"
+      - "--metrics.prometheus.entrypoint=metrics"
+      - "--metrics.prometheus.addEntryPointsLabels=true"
+      - "--metrics.prometheus.addrouterslabels=true"
+      - "--metrics.prometheus.addServicesLabels=true"
+      - "--entrypoints.metrics.address=:8082"
+      # Включаем логирование для CrowdSec
+      - "--accesslog=true"
+      - "--accesslog.filepath=/var/log/traefik/access.log"
+    labels:
+      traefik.http.routers.traefik-dashboard.entrypoints: "web"
+      traefik.http.routers.traefik-dashboard.tls: "false"
+      traefik.http.routers.traefik-dashboard.tls.certresolver: ""
+      traefik.http.routers.traefik-dashboard.middlewares: ""
+
+  app:
+    ports:
+      - "8000:8000"
+    labels:
+      traefik.http.routers.app.entrypoints: "web"
+      traefik.http.routers.app.tls: "false"
+      traefik.http.routers.app.tls.certresolver: ""
+      traefik.http.routers.app.middlewares: ""
+      traefik.http.routers.app.rule: "Host(`localhost`) || Host(`127.0.0.1`) || Host(`${DOMAIN:-localhost}`)"
+
+  grafana:
+    profiles: []
+    labels:
+      traefik.http.routers.grafana.entrypoints: "web"
+      traefik.http.routers.grafana.tls: "false"
+      traefik.http.routers.grafana.tls.certresolver: ""
+      traefik.http.routers.grafana.rule: "Host(`grafana.localhost`) || Host(`grafana.${DOMAIN:-localhost}`)"
+      traefik.http.routers.grafana.middlewares: ""
+
+  prometheus:
+    profiles: []
+    labels:
+      traefik.http.routers.prometheus.entrypoints: "web"
+      traefik.http.routers.prometheus.tls: "false"
+      traefik.http.routers.prometheus.tls.certresolver: ""
+      traefik.http.routers.prometheus.rule: "Host(`prometheus.localhost`) || Host(`prometheus.${DOMAIN:-localhost}`)"
+      traefik.http.routers.prometheus.middlewares: ""
+
+  alertmanager:
+    profiles: []
+    labels:
+      traefik.http.routers.alertmanager.entrypoints: "web"
+      traefik.http.routers.alertmanager.tls: "false"
+      traefik.http.routers.alertmanager.tls.certresolver: ""
+      traefik.http.routers.alertmanager.rule: "Host(`alertmanager.localhost`) || Host(`alertmanager.${DOMAIN:-localhost}`)"
+      traefik.http.routers.alertmanager.middlewares: ""
+
+  tunnel:
+    image: node:lts-alpine
+    command: npx localtunnel --port 8000 --subdomain ai-service-api
+    network_mode: "service:app"
+    restart: always

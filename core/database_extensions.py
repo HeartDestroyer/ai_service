@@ -1,1 +1,0 @@
-# ai_service/core/database_extensions.py - Расширения для работы с БД

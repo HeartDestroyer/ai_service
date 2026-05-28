@@ -1,0 +1,1 @@
+# ai_service/infrastructure/pkg/profile_client/http_client.py - HTTP-клиент для клиента ProfileHub

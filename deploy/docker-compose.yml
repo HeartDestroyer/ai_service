@@ -1,0 +1,442 @@
+name: ai_service
+
+services:
+  app:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+    container_name: ai_service_app
+    restart: unless-stopped
+    init: true
+    env_file:
+      - ../.env
+    environment:
+      - PROMETHEUS_MULTIPROC_DIR=/app/app_metrics/prometheus_multiproc
+    volumes:
+      - logs_data:/app/logs
+      - storage_data:/app/storage
+      - shared_tmp_data:/app/shared_tmp
+    depends_on:
+      database:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          cpus: '3.0'
+          memory: 2.5G
+        reservations:
+          cpus: '1.0'
+          memory: 1G
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.services.app.loadbalancer.server.port=8000"
+
+      - "traefik.http.routers.app.rule=Host(`${DOMAIN}`)"
+      - "traefik.http.routers.app.entrypoints=websecure"
+      - "traefik.http.routers.app.tls.certresolver=myresolver"
+      - "traefik.http.routers.app.service=app"
+      - "traefik.http.routers.app.middlewares="
+    networks:
+      - frontend_net
+      - backend_net
+  dramatiq_worker:
+    profiles: ["workers"]
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+    container_name: ai_service_dramatiq_worker
+    restart: unless-stopped
+    init: true
+    env_file:
+      - ../.env
+    environment:
+      - PROMETHEUS_MULTIPROC_DIR=/app/dramatiq_metrics/prometheus_multiproc
+    volumes:
+      - logs_data:/app/logs
+      - storage_data:/app/storage
+      - shared_tmp_data:/app/shared_tmp
+    command:
+      - "dramatiq"
+      - "core.workers.broker"
+      - "infrastructure.worker_task.maintenance"
+      - "--processes"
+      - "${DRAMATIQ_PROCESSES}"
+      - "--threads"
+      - "${DRAMATIQ_THREADS}"
+    depends_on:
+      database:
+        condition: service_healthy
+      redis_dramatiq:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "python -c 'import urllib.request; urllib.request.urlopen(\"http://127.0.0.1:9191/metrics\")'"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 1.8G
+        reservations:
+          cpus: '1.0'
+          memory: 1G
+    networks:
+      - backend_net
+  scheduler:
+    profiles: ["workers"]
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+    container_name: ai_service_scheduler
+    restart: unless-stopped
+    env_file:
+      - ../.env
+    command: python -m infrastructure.worker_task.scheduler_wrapper
+    depends_on:
+      database:
+        condition: service_healthy
+      redis_dramatiq:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          cpus: '0.2'
+          memory: 0.3G
+        reservations:
+          cpus: '0.1'
+          memory: 0.15G
+    networks:
+      - backend_net
+  database:
+    image: postgres:17
+    container_name: ai_service_postgres
+    restart: unless-stopped
+    volumes:
+      - postgres_data:/var/lib/postgresql/data/
+    shm_size: '2gb'
+    command:
+      - "postgres"
+      - "-c"
+      - "shared_buffers=1250MB" # Память для буферизации данных
+      - "-c"
+      - "effective_cache_size=3500MB" # Память для кэширования
+      - "-c"
+      - "work_mem=12MB" # Память на сложные операции (сортировки, хэши) на один запрос
+      - "-c"
+      - "maintenance_work_mem=512MB" # Память для операций обслуживания (VACUUM, CREATE INDEX)
+      - "-c"
+      - "max_connections=${MAX_CONNECT_DB}"
+      - "-c"
+      - "max_wal_size=4GB" # Максимальный размер WAL
+      - "-c"
+      - "checkpoint_timeout=10min" # Интервал между автоматическими контрольными точками
+      - "-c"
+      - "random_page_cost=1.1" # Коэффицент поиска по индексам
+    ports:
+      - "127.0.0.1:5432:5432"
+    env_file:
+      - ../.env
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 5.5G
+        reservations:
+          cpus: '0.5'
+          memory: 2G
+    networks:
+      - backend_net
+  redis:
+    image: redis:8.2.0
+    container_name: ai_service_redis
+    restart: unless-stopped
+    volumes:
+      - redis_data:/data
+    command:
+      - "redis-server"
+      - "--requirepass ${REDIS_PASSWORD}"
+      - "--appendonly yes" # Использовать AOF
+      - "--aof-use-rdb-preamble yes" # Использовать преамбулу RDB для AOF
+      - "--maxmemory 450mb" # Лимит по памяти
+      - "--maxmemory-policy allkeys-lru" # Политика вытеснения для кэша (удаляет ключи, которые не использовались в течение длительного времени)
+    ports:
+      - "127.0.0.1:6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          cpus: '0.3'
+          memory: 0.5G
+        reservations:
+          cpus: '0.1'
+          memory: 0.5G
+    networks:
+      - backend_net
+  redis_dramatiq:
+    image: redis:8.2.0
+    container_name: ai_service_redis_dramatiq
+    restart: unless-stopped
+    volumes:
+      - redis_data_dramatiq:/data
+    command:
+      - "redis-server"
+      - "--requirepass ${DRAMATIQ_REDIS_PASSWORD}"
+      - "--appendonly yes" # Использовать AOF
+      - "--aof-use-rdb-preamble yes" # Использовать преамбулу RDB для AOF
+      - "--maxmemory 150mb" # Лимит по памяти
+      - "--maxmemory-policy noeviction" # Безопасная политика для очереди (возвращает ошибку при записи в Redis, вместо вытеснения)
+    ports:
+      - "127.0.0.1:6380:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${DRAMATIQ_REDIS_PASSWORD}", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          cpus: '0.3'
+          memory: 0.2G
+        reservations:
+          cpus: '0.1'
+          memory: 0.2G
+    networks:
+      - backend_net
+  loki:
+    profiles: ["infra"]
+    image: grafana/loki:2.9.0
+    container_name: ai_service_loki
+    restart: unless-stopped
+    command: -config.file=/etc/loki/local-config.yaml
+    ports:
+      - "127.0.0.1:3100:3100"
+    deploy:
+      resources:
+        limits:
+          cpus: '0.2'
+          memory: 0.3G
+    networks:
+      - backend_net
+  promtail:
+    profiles: ["infra"]
+    image: grafana/promtail:2.9.0
+    container_name: ai_service_promtail
+    restart: unless-stopped
+    volumes:
+      - ../monitoring/promtail/promtail-config.yml:/etc/promtail/config.yml:ro
+      - logs_data:/var/log/app:ro
+      - traefik_logs_data:/var/log/traefik:ro
+    command: -config.file=/etc/promtail/config.yml
+    depends_on:
+      - loki
+    deploy:
+      resources:
+        limits:
+          cpus: '0.1'
+          memory: 0.1G
+    networks:
+      - backend_net
+  grafana:
+    profiles: ["infra"]
+    image: grafana/grafana:11.4.8
+    container_name: ai_service_grafana
+    restart: unless-stopped
+    env_file:
+      - ../.env
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD}
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ../monitoring/grafana/provisioning/datasources:/etc/grafana/provisioning/datasources:ro
+      - ../monitoring/grafana/provisioning/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ../monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    depends_on:
+      - loki
+      - prometheus
+    deploy:
+      resources:
+        limits:
+          cpus: '0.2'
+          memory: 0.3G
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.grafana.rule=Host(`grafana.${DOMAIN}`)"
+      - "traefik.http.routers.grafana.entrypoints=websecure"
+      - "traefik.http.routers.grafana.tls.certresolver=myresolver"
+      - "traefik.http.routers.grafana.middlewares=monitoring-ipwhitelist,monitoring-auth"
+      - "traefik.http.services.grafana.loadbalancer.server.port=3000"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O- http://127.0.0.1:3000/api/health | grep -q ok"]
+      interval: 20s
+      timeout: 5s
+      retries: 5
+    networks:
+      - frontend_net
+      - backend_net
+  prometheus:
+    profiles: ["infra"]
+    image: prom/prometheus:v2.55.1
+    container_name: ai_service_prometheus
+    restart: unless-stopped
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=15d
+    volumes:
+      - ../monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ../monitoring/prometheus/alerts.yml:/etc/prometheus/alerts.yml:ro
+      - prometheus_data:/prometheus
+    depends_on:
+      - traefik
+      - alertmanager
+    deploy:
+      resources:
+        limits:
+          cpus: '0.3'
+          memory: 0.5G
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.prometheus.rule=Host(`prometheus.${DOMAIN}`)"
+      - "traefik.http.routers.prometheus.entrypoints=websecure"
+      - "traefik.http.routers.prometheus.tls.certresolver=myresolver"
+      - "traefik.http.routers.prometheus.middlewares=monitoring-ipwhitelist,monitoring-auth"
+      - "traefik.http.services.prometheus.loadbalancer.server.port=9090"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O- http://127.0.0.1:9090/-/healthy | grep -q Prometheus"]
+      interval: 20s
+      timeout: 5s
+      retries: 5
+    networks:
+      - frontend_net
+      - backend_net
+  alertmanager:
+    profiles: ["infra"]
+    image: prom/alertmanager:v0.31.1
+    container_name: ai_service_alertmanager
+    restart: unless-stopped
+    entrypoint: ["/bin/sh", "/etc/alertmanager/start.sh"]
+    environment:
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
+      TELEGRAM_ADMIN_CHAT_ID: ${TELEGRAM_ADMIN_CHAT_ID}
+    deploy:
+      resources:
+        limits:
+          cpus: '0.1'
+          memory: 0.05G
+    volumes:
+      - ../monitoring/alertmanager/alertmanager.yml.tpl:/etc/alertmanager/alertmanager.yml.tpl:ro
+      - ../bash_scripts/start_alertmanager.sh:/etc/alertmanager/start.sh:ro
+      - alertmanager_data:/alertmanager
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.alertmanager.rule=Host(`alertmanager.${DOMAIN}`)"
+      - "traefik.http.routers.alertmanager.entrypoints=websecure"
+      - "traefik.http.routers.alertmanager.tls.certresolver=myresolver"
+      - "traefik.http.routers.alertmanager.middlewares=monitoring-ipwhitelist,monitoring-auth"
+      - "traefik.http.services.alertmanager.loadbalancer.server.port=9093"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O- http://127.0.0.1:9093/-/healthy | grep -q OK"]
+      interval: 20s
+      timeout: 5s
+      retries: 5
+    networks:
+      - frontend_net
+      - backend_net
+  traefik:
+    profiles: ["infra"]
+    image: traefik:v3.6.9
+    container_name: ai_service_traefik
+    restart: unless-stopped
+    command:
+      - "--api.insecure=false" # Включаем API Traefik
+      - "--api.dashboard=true" # Включаем Dashboard Traefik
+      - "--ping=true" # Включаем Ping Traefik
+      - "--providers.docker=true" # Включаем провайдер Docker
+      - "--providers.docker.exposedbydefault=false" # Не экспортируем сервисы по умолчанию
+      - "--entrypoints.web.address=:80"
+      - "--entrypoints.websecure.address=:443"
+      # Настройки метрик для Prometheus
+      - "--metrics.prometheus=true"
+      - "--metrics.prometheus.entrypoint=metrics"
+      - "--metrics.prometheus.addEntryPointsLabels=true"
+      - "--metrics.prometheus.addrouterslabels=true"
+      - "--metrics.prometheus.addServicesLabels=true"
+      - "--entrypoints.metrics.address=:8082"
+      # Редирект HTTP -> HTTPS
+      - "--entrypoints.web.http.redirections.entryPoint.to=websecure"
+      - "--entrypoints.web.http.redirections.entryPoint.scheme=https"
+      # Настройка SSL
+      - "--certificatesresolvers.myresolver.acme.tlschallenge=true"
+      - "--certificatesresolvers.myresolver.acme.email=${ACME_EMAIL}"
+      - "--certificatesresolvers.myresolver.acme.storage=/letsencrypt/acme.json"
+      # Включаем access-логирование Traefik
+      - "--accesslog=true"
+      - "--accesslog.filepath=/var/log/traefik/access.log"
+      - "--accesslog.format=json"
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - "/var/run/docker.sock:/var/run/docker.sock:ro"
+      - "../letsencrypt:/letsencrypt"
+      - "traefik_logs_data:/var/log/traefik"
+      - "traefik_plugins:/plugins-storage"
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 0.4G
+        reservations:
+          cpus: '0.2'
+          memory: 0.3G
+    healthcheck:
+      test: ["CMD", "traefik", "healthcheck", "--ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.traefik-dashboard.rule=Host(`traefik.${DOMAIN}`)"
+      - "traefik.http.routers.traefik-dashboard.entrypoints=websecure"
+      - "traefik.http.routers.traefik-dashboard.tls.certresolver=myresolver"
+      - "traefik.http.routers.traefik-dashboard.service=api@internal"
+      - "traefik.http.routers.traefik-dashboard.middlewares=monitoring-ipwhitelist,monitoring-auth"
+      - "traefik.http.middlewares.monitoring-auth.basicauth.users=${TRAEFIK_HASH_PASSWORD}"
+      - "traefik.http.middlewares.monitoring-ipwhitelist.ipwhitelist.sourcerange=${MONITORING_ALLOWED_CIDRS}"
+    networks:
+      - frontend_net
+      - backend_net
+
+networks:
+  frontend_net:
+    driver: bridge
+  backend_net:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  redis_data:
+  redis_data_dramatiq:
+  logs_data:
+  traefik_logs_data:
+  storage_data:
+  grafana_data:
+  prometheus_data:
+  alertmanager_data:
+  shared_tmp_data:
+  traefik_plugins:
+  dramatiq_metrics:
