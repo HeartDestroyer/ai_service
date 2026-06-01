@@ -17,12 +17,17 @@ class RateLimiterClient:
         self._limiter = Limiter(key_func = self.key_func, storage_uri = settings.redis.REDIS_URL)
 
     def key_func(self, request: Request) -> str:
-        key_source = request.headers.get("X-API-Key") or resolve_client_ip(request)
-        return sha256(key_source.encode("utf-8")).hexdigest().lower()
+        """
+        Формирует уникальный ключ для лимитера
+        """
+        api_key = request.headers.get("X-API-Key")
+        if api_key:
+            return sha256(api_key.encode("utf-8")).hexdigest().lower()
+
+        return resolve_client_ip(request)
 
     def get_limiter(self) -> Limiter:
         return self._limiter
-
 
 limiter_client = RateLimiterClient()
 limiter = limiter_client.get_limiter()

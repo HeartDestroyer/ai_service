@@ -77,6 +77,7 @@ class SecurityConfig(BaseConfigSettings):
     DOCS_WHITELIST: list[str] = Field(default_factory = lambda: ["/docs", "/redoc"], env = "DOCS_WHITELIST", description = "Список путей документации")
     DOCS_USERNAME: str = Field(..., env = "DOCS_USERNAME", description = "Логин для доступа к документации")
     DOCS_PASSWORD: SecretStr = Field(..., env = "DOCS_PASSWORD", description = "Пароль для доступа к документации")
+    TRUSTED_PROXY_IPS: list[str] = Field(default_factory = lambda: ["127.0.0.1", "10.0.0.0/8"], env = "TRUSTED_PROXY_IPS", description = "Список доверенных IP-адресов или подсетей прокси-серверов")
 
     @field_validator("SECRET_KEY", mode="before")
     @classmethod
@@ -99,7 +100,7 @@ class SecurityConfig(BaseConfigSettings):
             parsed[str(key_name)] = SecretStr(str(raw_key))
         return parsed
 
-    @field_validator("DOCS_WHITELIST", mode="before")
+    @field_validator("DOCS_WHITELIST", "TRUSTED_PROXY_IPS", mode="before")
     @classmethod
     def parse_security_lists(cls, value: any) -> list[str]:
         return _to_str_list(value)
@@ -139,34 +140,34 @@ class CORSConfig(BaseConfigSettings):
 class LoggingConfig(BaseConfigSettings):
     LOG_LEVEL: str = Field("INFO", env = "LOG_LEVEL")
     LOGS_DIR: str = Field("logs", env = "LOGS_DIR")
-    LOG_FILE_MAX_BYTES: int = Field(104857600, env = "LOG_FILE_MAX_BYTES", ge = 1)
-    LOG_FILE_BACKUP_COUNT: int = Field(5, env = "LOG_FILE_BACKUP_COUNT", ge = 1)
-    LOG_AUDIT_BACKUP_DAYS: int = Field(30, env = "LOG_AUDIT_BACKUP_DAYS", ge = 1)
-    LOG_QUEUE_MAX_SIZE: int = Field(1000, env = "LOG_QUEUE_MAX_SIZE", ge = 100)
+    LOG_FILE_MAX_BYTES: int = Field(104857600, env = "LOG_FILE_MAX_BYTES", ge = 1, description = "Максимальный размер файла логирования - 100MB")
+    LOG_FILE_BACKUP_COUNT: int = Field(5, env = "LOG_FILE_BACKUP_COUNT", ge = 1, description = "Количество резервных копий файлов логирования")
+    LOG_AUDIT_BACKUP_DAYS: int = Field(30, env = "LOG_AUDIT_BACKUP_DAYS", ge = 1, description = "Количество дней хранения резервных копий логирования")
+    LOG_QUEUE_MAX_SIZE: int = Field(1000, env = "LOG_QUEUE_MAX_SIZE", ge = 100, description = "Максимальное количество сообщений в очереди логирования")
 
 #endregion
 
 #region Настройки базы данных
 
 class DatabaseConfig(BaseConfigSettings):
-    DB_HOST: str = Field(..., env = "DB_HOST")
-    DB_PORT: int = Field(..., env = "DB_PORT")
-    POSTGRES_USER: str = Field(..., env = "POSTGRES_USER")
-    POSTGRES_PASSWORD: SecretStr = Field(..., env = "POSTGRES_PASSWORD")
-    POSTGRES_DB: str = Field(..., env = "POSTGRES_DB")
-    DATABASE_URL: str | None = Field(None, env = "DATABASE_URL")
-    TYPE_CONNECTION: str = Field("postgresql+asyncpg", env = "TYPE_CONNECTION")
-    SQLALCHEMY_ECHO: bool = Field(..., env = "SQLALCHEMY_ECHO")
-    DB_CONNECT_TIMEOUT: int = Field(10, env = "DB_CONNECT_TIMEOUT", ge = 1)
-    DB_POOL_SIZE: int = Field(20, env = "DB_POOL_SIZE", ge = 1)
-    DB_MAX_OVERFLOW: int = Field(10, env = "DB_MAX_OVERFLOW", ge = 0)
-    DB_POOL_TIMEOUT: int = Field(30, env = "DB_POOL_TIMEOUT", ge = 1)
-    DB_POOL_RECYCLE: int = Field(1800, env = "DB_POOL_RECYCLE", ge = 1)
-    DB_POOL_PRE_PING: bool = Field(True, env = "DB_POOL_PRE_PING")
-    DB_INIT_RETRY_ATTEMPTS: int = Field(5, env = "DB_INIT_RETRY_ATTEMPTS", ge = 1)
-    MAX_LIMIT: int = Field(100, env = "MAX_LIMIT", ge = 1)
-    DB_WORKERS_COUNT: int = Field(4, env = "DB_WORKERS_COUNT", ge = 1)
-    MAX_CONNECT_DB: int = Field(200, env = "MAX_CONNECT_DB", ge = 1)
+    DB_HOST: str = Field(..., env = "DB_HOST", description = "Адрес сервера базы данных")
+    DB_PORT: int = Field(..., env = "DB_PORT", description = "Порт сервера базы данных")
+    POSTGRES_USER: str = Field(..., env = "POSTGRES_USER", description = "Имя пользователя базы данных")
+    POSTGRES_PASSWORD: SecretStr = Field(..., env = "POSTGRES_PASSWORD", description = "Пароль пользователя базы данных")
+    POSTGRES_DB: str = Field(..., env = "POSTGRES_DB", description = "Имя базы данных")
+    DATABASE_URL: str | None = Field(None, env = "DATABASE_URL", description = "URL для подключения к базе данных")
+    TYPE_CONNECTION: str = Field("postgresql+asyncpg", env = "TYPE_CONNECTION", description = "Тип соединения к базе данных")
+    SQLALCHEMY_ECHO: bool = Field(..., env = "SQLALCHEMY_ECHO", description = "Вывод SQL запросов в консоль")
+    DB_CONNECT_TIMEOUT: int = Field(10, env = "DB_CONNECT_TIMEOUT", ge = 1, description = "Таймаут соединения к базе данных")
+    DB_POOL_SIZE: int = Field(20, env = "DB_POOL_SIZE", ge = 1, description = "Максимальное количество соединений в пуле")
+    DB_MAX_OVERFLOW: int = Field(10, env = "DB_MAX_OVERFLOW", ge = 0, description = "Максимальное количество соединений в пуле сверх основного")
+    DB_POOL_TIMEOUT: int = Field(30, env = "DB_POOL_TIMEOUT", ge = 1, description = "Таймаут ожидания соединения в пуле")
+    DB_POOL_RECYCLE: int = Field(1800, env = "DB_POOL_RECYCLE", ge = 1, description = "Время жизни соединения в пуле")
+    DB_POOL_PRE_PING: bool = Field(True, env = "DB_POOL_PRE_PING", description = "Проверка соединения перед использованием")
+    DB_INIT_RETRY_ATTEMPTS: int = Field(5, env = "DB_INIT_RETRY_ATTEMPTS", ge = 1, description = "Количество попыток инициализации соединения")
+    MAX_LIMIT: int = Field(100, env = "MAX_LIMIT", ge = 1, description = "Максимальное количество запросов к базе данных")
+    DB_WORKERS_COUNT: int = Field(4, env = "DB_WORKERS_COUNT", ge = 1, description = "Количество рабочих процессов для базы данных")
+    MAX_CONNECT_DB: int = Field(200, env = "MAX_CONNECT_DB", ge = 1, description = "Максимальное количество одновременных соединений к базе данных")
 
     @property
     def SQLALCHEMY_ENGINE_OPTIONS(self) -> dict[str, any]:
@@ -191,14 +192,14 @@ class DatabaseConfig(BaseConfigSettings):
 #region Настройки Redis
 
 class RedisConfig(BaseConfigSettings):
-    REDIS_HOST: str = Field(..., env = "REDIS_HOST")
-    REDIS_PORT: int = Field(..., env = "REDIS_PORT")
-    REDIS_DB: int = Field(..., env = "REDIS_DB")
-    REDIS_PASSWORD: SecretStr = Field(..., env = "REDIS_PASSWORD")
-    REDIS_URL: str | None = Field(None, env = "REDIS_URL")
-    REDIS_TIMEOUT: int = Field(15, env = "REDIS_TIMEOUT", ge = 1)
-    REDIS_MAX_CONNECTIONS: int = Field(100, env = "REDIS_MAX_CONNECTIONS", ge = 1)
-    REDIS_INIT_RETRY_ATTEMPTS: int = Field(5, env = "REDIS_INIT_RETRY_ATTEMPTS", ge = 1)
+    REDIS_HOST: str = Field(..., env = "REDIS_HOST", description = "Адрес сервера Redis")
+    REDIS_PORT: int = Field(..., env = "REDIS_PORT", description = "Порт сервера Redis")
+    REDIS_DB: int = Field(..., env = "REDIS_DB", description = "Имя базы данных Redis")
+    REDIS_PASSWORD: SecretStr = Field(..., env = "REDIS_PASSWORD", description = "Пароль пользователя Redis")
+    REDIS_URL: str | None = Field(None, env = "REDIS_URL", description = "URL для подключения к Redis")
+    REDIS_TIMEOUT: int = Field(15, env = "REDIS_TIMEOUT", ge = 1, description = "Таймаут ожидания соединения в Redis")
+    REDIS_MAX_CONNECTIONS: int = Field(100, env = "REDIS_MAX_CONNECTIONS", ge = 1, description = "Максимальное количество соединений в пуле Redis")
+    REDIS_INIT_RETRY_ATTEMPTS: int = Field(5, env = "REDIS_INIT_RETRY_ATTEMPTS", ge = 1, description = "Количество попыток инициализации соединения к Redis")
 
     @model_validator(mode="after")
     def assemble_redis_url(self) -> "RedisConfig":
@@ -213,18 +214,18 @@ class RedisConfig(BaseConfigSettings):
 #region Настройки Dramatiq
 
 class DramatiqConfig(BaseConfigSettings):
-    DRAMATIQ_REDIS_HOST: str = Field(..., env = "DRAMATIQ_REDIS_HOST")
-    DRAMATIQ_REDIS_PORT: int = Field(..., env = "DRAMATIQ_REDIS_PORT")
-    DRAMATIQ_REDIS_PASSWORD: SecretStr = Field(..., env = "DRAMATIQ_REDIS_PASSWORD")
-    DRAMATIQ_REDIS_DB: int = Field(..., env = "DRAMATIQ_REDIS_DB")
-    DRAMATIQ_REDIS_URL: str | None = Field(None, env = "DRAMATIQ_REDIS_URL")
-    MAX_RETRIES: int = Field(5, env = "DRAMATIQ_MAX_RETRIES", ge = 0)
-    MIN_BACKOFF: int = Field(5000, env = "DRAMATIQ_MIN_BACKOFF", ge = 0)
-    MAX_BACKOFF: int = Field(60000, env = "DRAMATIQ_MAX_BACKOFF", ge = 0)
-    DLQ_TTL_DAYS: int = Field(7, env = "DRAMATIQ_DLQ_TTL_DAYS", ge = 1)
-    RESULTS_KEY_PREFIX: str = Field("dramatiq:results:", env = "DRAMATIQ_RESULTS_PREFIX")
-    DLQ_KEY_PREFIX: str = Field("dramatiq:dlq:", env = "DRAMATIQ_DLQ_PREFIX")
-    REPORTS_KEY_PREFIX: str = Field("dramatiq:reports:", env = "DRAMATIQ_REPORTS_PREFIX")
+    DRAMATIQ_REDIS_HOST: str = Field(..., env = "DRAMATIQ_REDIS_HOST", description = "Адрес сервера Redis для Dramatiq")
+    DRAMATIQ_REDIS_PORT: int = Field(..., env = "DRAMATIQ_REDIS_PORT", description = "Порт сервера Redis для Dramatiq")
+    DRAMATIQ_REDIS_PASSWORD: SecretStr = Field(..., env = "DRAMATIQ_REDIS_PASSWORD", description = "Пароль пользователя Redis для Dramatiq")
+    DRAMATIQ_REDIS_DB: int = Field(..., env = "DRAMATIQ_REDIS_DB", description = "Имя базы данных Redis для Dramatiq")
+    DRAMATIQ_REDIS_URL: str | None = Field(None, env = "DRAMATIQ_REDIS_URL", description = "URL для подключения к Redis для Dramatiq")
+    MAX_RETRIES: int = Field(5, env = "DRAMATIQ_MAX_RETRIES", ge = 0, description = "Максимальное количество попыток повторного выполнения задачи")
+    MIN_BACKOFF: int = Field(5000, env = "DRAMATIQ_MIN_BACKOFF", ge = 0, description = "Минимальное время ожидания между попытками повторного выполнения задачи")
+    MAX_BACKOFF: int = Field(60000, env = "DRAMATIQ_MAX_BACKOFF", ge = 0, description = "Максимальное время ожидания между попытками повторного выполнения задачи")
+    DLQ_TTL_DAYS: int = Field(7, env = "DRAMATIQ_DLQ_TTL_DAYS", ge = 1, description = "Время жизни задачи в DLQ")
+    RESULTS_KEY_PREFIX: str = Field("dramatiq:results:", env = "DRAMATIQ_RESULTS_PREFIX", description = "Префикс ключа для результатов задач")
+    DLQ_KEY_PREFIX: str = Field("dramatiq:dlq:", env = "DRAMATIQ_DLQ_PREFIX", description = "Префикс ключа для задач в DLQ")
+    REPORTS_KEY_PREFIX: str = Field("dramatiq:reports:", env = "DRAMATIQ_REPORTS_PREFIX", description = "Префикс ключа для отчетов о выполнении задач")
 
     @model_validator(mode="after")
     def assemble_dramatiq_redis_url(self) -> "DramatiqConfig":
@@ -239,10 +240,17 @@ class DramatiqConfig(BaseConfigSettings):
 #region Настройки интеграции
 
 class IntegrationConfig(BaseConfigSettings):
-    TOKEN_PROFILEHUB: SecretStr = Field(..., env = "TOKEN_PROFILEHUB")
-    URL_PROFILEHUB: str = Field(..., env = "URL_PROFILEHUB")
-    ATTEMPTS_PROFILEHUB: int = Field(5, env = "ATTEMPTS_PROFILEHUB", ge = 1)
-    TIMEOUT_PROFILEHUB: int = Field(15, env = "TIMEOUT_PROFILEHUB", ge = 1)
+    API_KEY_PROFILEHUB: SecretStr = Field(..., env = "API_KEY_PROFILEHUB")
+    API_URL_PROFILEHUB: str = Field(..., env = "API_URL_PROFILEHUB")
+    ATTEMPTS_PROFILEHUB: int = Field(5, ge = 1, env = "ATTEMPTS_PROFILEHUB", description = "Количество попыток запроса к ПрофильХаб")
+    TIMEOUT_PROFILEHUB: int = Field(15, ge = 1, env = "TIMEOUT_PROFILEHUB", description = "Таймаут запроса к ПрофильХаб (сек)")
+    CONNECT_TIMEOUT_PROFILEHUB: int = Field(10, ge = 1, env = "CONNECT_TIMEOUT_PROFILEHUB", description = "Таймаут соединения с ПрофильХаб (сек)")
+
+    API_KEY_POLZA: SecretStr = Field(..., env = "API_KEY_POLZA")
+    API_URL_POLZA: str = Field(..., env = "API_URL_POLZA")
+    ATTEMPTS_POLZA: int = Field(5, ge = 1, env = "ATTEMPTS_POLZA", description = "Количество попыток запроса к Polza.ai")
+    TIMEOUT_POLZA: int = Field(120, ge = 1, env = "TIMEOUT_POLZA", description = "Таймаут запроса к Polza.ai (сек)")
+    CONNECT_TIMEOUT_POLZA: int = Field(10, ge = 1, env = "CONNECT_TIMEOUT_POLZA", description = "Таймаут соединения с Polza.ai (сек)")
 
 #endregion
 

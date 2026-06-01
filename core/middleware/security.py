@@ -2,6 +2,7 @@
 
 #region Импорты и библиотеки
 
+import ipaddress
 import secrets
 from typing import Callable
 from fastapi import Depends, HTTPException, Request, Security
@@ -12,6 +13,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 
 from core.configuration.settings import settings
 from core.infrastructure.redis import redis_client
+from core.observability.logger import logger
 
 #endregion
 
@@ -24,17 +26,41 @@ basic_auth_scheme = HTTPBasic()
 
 #region Определение IP клиента
 
+TRUSTED_NETWORKS = [ipaddress.ip_network(cidr.strip()) for cidr in settings.security.TRUSTED_PROXY_IPS]
+
 def resolve_client_ip(request: Request) -> str:
     """
-    Определение IP клиента
+    Единая точка определения реального IP клиента с защитой от спуфинга
     """
-    return request.client.host if request.client else "127.0.0.1"
+    client_ip = request.client.host if request.client else "127.0.0.1"
+    forwarded_for = request.headers.get("X-Forwarded-For")
+
+    if forwarded_for:
+        try:
+            client_ip_obj = ipaddress.ip_address(client_ip)
+            if any(client_ip_obj in net for net in TRUSTED_NETWORKS):
+                return forwarded_for.split(",")[0].strip()
+            else:
+                logger.warning(f"Сервис безопасности | Игнорируем X-Forwarded-For от недоверенного узла: {client_ip}")
+        except ValueError:
+            pass
+
+    # Резервный вариант: проверяем валидность прямого IP
+    try:
+        ipaddress.ip_address(client_ip)
+        return client_ip
+    except ValueError:
+        logger.warning(f"Сервис безопасности | Некорректный IP: {client_ip}")
+        return "127.0.0.1"
 
 #endregion
 
 #region Сервисы безопасности
 
 class ApiKeyValidator:
+    """
+    Сервис для проверки и валидации API ключей
+    """
 
     def get_matched_names(self, api_key_value: str | None) -> list[str]:
         """
@@ -61,6 +87,9 @@ class ApiKeyValidator:
         return True
 
 class AnonymousRateLimiter:
+    """
+    Сервис для принудительного ограничения нагрузки для анонимных клиентов
+    """
 
     def __init__(self, limit: int = 10, window_seconds: int = 60 * 60, redis_key_prefix: str = "limit:anonymous:"):
         self.limit = limit
@@ -89,9 +118,12 @@ class AnonymousRateLimiter:
             await redis.expire(key, self.window_seconds)
 
         if requests_count > self.limit:
-            raise HTTPException(status_code = 403, detail = "Доступ запрещен: превышен лимит запросов без API ключа")
+            raise HTTPException(status_code = 429, detail = "Доступ запрещен: превышен лимит запросов без API ключа")
 
 class AnonymousRateLimitMiddleware(BaseHTTPMiddleware):
+    """
+    Middleware для принудительного ограничения нагрузки для анонимных клиентов
+    """
     
     async def dispatch(self, request: Request, call_next):
         """

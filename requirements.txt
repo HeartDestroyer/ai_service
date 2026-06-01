@@ -22,3 +22,4 @@ opentelemetry-instrumentation==0.57b0
 opentelemetry-instrumentation-sqlalchemy==0.57b0
 dramatiq==1.18.0
 apscheduler==3.10.4
+httpx==0.28.1

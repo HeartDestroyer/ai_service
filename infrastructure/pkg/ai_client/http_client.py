@@ -1,1 +1,0 @@
-# ai_service/infrastructure/pkg/ai_client/http_client.py - HTTP-клиент для работы с ИИ

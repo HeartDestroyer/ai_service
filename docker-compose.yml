@@ -1,0 +1,7 @@
+# Запуск из корня репозитория: docker compose up -d
+
+name: ai_service
+
+include:
+  - path: deploy/docker-compose.yml
+  - path: deploy/docker-compose.local.yml

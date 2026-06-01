@@ -42,7 +42,6 @@ services:
       - frontend_net
       - backend_net
   dramatiq_worker:
-    profiles: ["workers"]
     build:
       context: ..
       dockerfile: deploy/Dockerfile
@@ -87,7 +86,6 @@ services:
     networks:
       - backend_net
   scheduler:
-    profiles: ["workers"]
     build:
       context: ..
       dockerfile: deploy/Dockerfile
